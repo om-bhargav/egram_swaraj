@@ -3,7 +3,7 @@ from panel import GPPanel
 from panel.reconsilation import ReconsilationPanel
 from panel.createnregister import CreateAndRegisterPlanPanel
 from excel.reconsilation import get_reconciliation_users,update_reconciliation_remarks
-from excel.createnregisterplan import get_users
+from excel.createnregisterplan import get_users,mark_users_done
 def process_panchayat_development_plan(config):
     users_with_records = get_pending_users(config)
     
@@ -29,11 +29,12 @@ def process_reconsilation(config):
 
 
 def process_createnregisterplan(config):
+    done = []
     try:
         users = get_users(config)
-        print(users)
         panel = CreateAndRegisterPlanPanel(config)
         for (username,password),years in users.items():
             panel.run(username,password,years)
+            done.append((username,password))
     finally:
-        pass
+        mark_users_done(config,done)

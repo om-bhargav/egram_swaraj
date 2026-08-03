@@ -1,6 +1,7 @@
 from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.cell import Cell
+from openpyxl.styles import PatternFill
 
 def get_users(config: dict) -> dict[tuple[str, str], list[str]]:
     """
@@ -13,7 +14,7 @@ def get_users(config: dict) -> dict[tuple[str, str], list[str]]:
         ]
     }
     """
-    
+
     file = Path(config["input"]["create_register_plan_sheet"])
 
     if not file.exists():
@@ -86,27 +87,30 @@ def get_users(config: dict) -> dict[tuple[str, str], list[str]]:
     return result
 
 
-def mark_user_done(
+def mark_users_done(
     config: dict,
-    username: str,
-    password: str,
-) -> bool:
+    users_list: list[tuple[str, str]],
+) -> int:
     """
-    Marks Remarks = Done for the matching username/password.
+    Marks matching users' rows green.
 
-    Returns True if updated else False.
+    Args:
+        users: [(username, password), ...]
+
+    Returns:
+        Number of rows updated.
     """
 
-    file = Path(config["input"]["users_sheet"])
+    file = Path(config["input"]["create_register_plan_sheet"])
 
     if not file.exists():
-        return False
+        return 0
 
     workbook = load_workbook(file)
 
     if "Sheet1" not in workbook.sheetnames:
         workbook.close()
-        return False
+        return 0
 
     sheet = workbook["Sheet1"]
 
@@ -120,40 +124,42 @@ def mark_user_done(
         password_col = headers.index("PASSWORD") + 1
     except ValueError:
         workbook.close()
-        return False
+        return 0
 
-    remarks_col = None
+    # Fast lookup
+    users = {
+        (
+            username.strip(),
+            password.strip(),
+        )
+        for username, password in users_list
+    }
 
-    for i, header in enumerate(headers, start=1):
-        if header.lower() == "remarks":
-            remarks_col = i
-            break
+    green_fill = PatternFill(
+        fill_type="solid",
+        start_color="92D050",
+        end_color="92D050",
+    )
 
-    if remarks_col is None:
-        remarks_col = sheet.max_column + 1
-        cell = sheet.cell(row=1, column=remarks_col) 
-        assert isinstance(cell,Cell)
-        cell.value = "Remarks"
-
-    updated = False
+    updated = 0
 
     for row in range(2, sheet.max_row + 1):
+        username = str(
+            sheet.cell(row=row, column=username_col).value or ""
+        ).strip()
 
-        user = sheet.cell(row=row, column=username_col).value
-        pwd = sheet.cell(row=row, column=password_col).value
+        password = str(
+            sheet.cell(row=row, column=password_col).value or ""
+        ).strip()
 
-        if (
-            str(user).strip() == username
-            and str(pwd).strip() == password
-        ):
-            cell = sheet.cell(row=1, column=remarks_col) 
-            assert isinstance(cell,Cell)
-            cell.value = "Done"
-            updated = True
-            break
+        if (username, password) in users:
+            for col in range(1, sheet.max_column + 1):
+                sheet.cell(row=row, column=col).fill = green_fill
+            updated += 1
 
     if updated:
         workbook.save(file)
 
     workbook.close()
+
     return updated
