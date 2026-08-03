@@ -7,7 +7,7 @@ app:
   authenticated_url: "https://egramswaraj.gov.in/home.htm"
   reconsilation_url: "https://egramswaraj.gov.in/AddBankReconciliation.htm"
   create_plan: "https://egramswaraj.gov.in/addactivity.htm"
-  register_plan: 
+  close_day_book_url: "https://egramswaraj.gov.in/showDayBook.htm"
 
 browser:
   headless: false

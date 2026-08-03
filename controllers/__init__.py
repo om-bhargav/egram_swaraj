@@ -22,7 +22,7 @@ def process_reconsilation(config):
         panel = ReconsilationPanel(config)
         lst = []
         for (username,password),option in users.items():
-            panel.run(username,password,option)
+            panel.run(username,password)
             lst.append((username,password))
     finally:
         update_reconciliation_remarks(config,lst)

@@ -2,7 +2,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.cell import Cell
-
+ 
 def get_reconciliation_users(config: dict) -> dict[tuple[str, str], str]:
     """
     Returns:

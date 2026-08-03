@@ -77,17 +77,25 @@ class BasePanel:
 
     def open_menu(self, menu_name: str):
         assert self.page
-
-        self.page.locator(
-            "#navbarDropdown"
-        ).click()
-
-        self.page.locator("a[href='menuProfile.htm?menuId=133']").first.click()
-
-        self.page.wait_for_load_state(
-            "networkidle"
-        )
-
+    
+        # Open the main menu
+        self.page.locator("#navbarDropdown").click()
+    
+        # Wait for dashboard to appear
+        dashboard = self.page.locator(".dashboard-grid")
+        expect(dashboard).to_be_visible()
+    
+        # Find the requested menu by its visible text
+        menu = dashboard.locator(
+            "h5 a",
+            has_text=menu_name,
+        ).first
+    
+        expect(menu).to_be_visible()
+    
+        menu.click()
+    
+        self.page.wait_for_load_state("networkidle")
     # ---------------- Bootbox ----------------
 
     def accept_bootboxes(self):
