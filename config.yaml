@@ -1,0 +1,23 @@
+app:
+  base_urls:
+    - "https://egramswaraj.gov.in"
+    - "https://egramswaraj.gov.in/welcome.do"
+  switch_unit_url: "https://egramswaraj.gov.in/switchunitchangefinancialYear.htm"
+  target_url: "https://egramswaraj.gov.in/manageactivity.htm"
+  authenticated_url: "https://egramswaraj.gov.in/home.htm"
+  reconsilation_url: "https://egramswaraj.gov.in/AddBankReconciliation.htm"
+  create_plan: "https://egramswaraj.gov.in/addactivity.htm"
+  register_plan: 
+
+browser:
+  headless: false
+  timeout_ms: 30000
+  save_timeout_ms: 120000
+  viewport:
+    width: 1400
+    height: 900
+
+input:
+  excel_sheet: "./files/data.xlsx"
+  reconsilation_sheet: "./files/reconsilationfornmat.xlsx"
+  create_register_plan_sheet: "./files/create_register_plan.xlsx"
