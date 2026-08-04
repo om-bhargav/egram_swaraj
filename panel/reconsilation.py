@@ -1,7 +1,9 @@
-from playwright.sync_api import TimeoutError,expect
+from playwright.sync_api import TimeoutError,expect,Page
 from .base_panel import BasePanel
 from helpers.reconsilation import is_bank_reconciliation_message,is_daybook_closed_message
 from datetime import datetime,timedelta
+import time
+import traceback
 class ReconsilationPanel(BasePanel):
     def __init__(self, config: dict):
         super().__init__(config)
@@ -20,7 +22,6 @@ class ReconsilationPanel(BasePanel):
             return final_answer
         finally:
             self.close_session()
-            return False
             
     def close_day_books(self):
         """
@@ -39,7 +40,11 @@ class ReconsilationPanel(BasePanel):
         yesterday = (
             datetime.now() - timedelta(days=1)
         ).strftime("%d/%m/%Y")
-        lst = []
+        yesterday_date = datetime.strptime(
+            yesterday,
+            "%d/%m/%Y"
+        ).date()
+        last_date_closed = ""
         while True:
         
             # Open Close Day Book page
@@ -58,21 +63,24 @@ class ReconsilationPanel(BasePanel):
                 .input_value()
                 .strip()
             )
-    
+            last_closed_date = datetime.strptime(
+                last_closed,
+                "%d/%m/%Y"
+            ).date()
             print(f"Last Closed : {last_closed}")
             print(f"Yesterday   : {yesterday}")
-    
+            last_date_closed = last_closed
             # Finished
-            if last_closed == yesterday:
+            if last_closed_date >= yesterday_date:
                 print("Day Book already closed till yesterday.")
-                return
-    
+                return last_closed
+
             # Click Close Day Book
             self.page.get_by_role(
                 "button",
                 name="Close Day Book",
             ).click()
-    
+            time.sleep(10)
             # Wait for popup
             self.page.wait_for_timeout(1500)
     
@@ -95,7 +103,7 @@ class ReconsilationPanel(BasePanel):
     
                 self.accept_bootboxes()
     
-                lst.append(self.process_reconsilation())
+                self.process_reconsilation()
                 
                 continue
             
@@ -126,7 +134,7 @@ class ReconsilationPanel(BasePanel):
                 pass
             
             break
-        return all(lst)
+        return last_date_closed
 
     def open_close_day_book(self):
         """
@@ -155,6 +163,8 @@ class ReconsilationPanel(BasePanel):
         option.click()
 
         self.page.wait_for_load_state("networkidle")
+
+
     def process_reconsilation(self):
         """
         Process reconciliation for all account types.
@@ -177,7 +187,7 @@ class ReconsilationPanel(BasePanel):
     def _process_bank_accounts(self):
         assert self.page
 
-        bank_idx = 1
+        bank_idx = 5
         branch_idx = 1
         account_idx = 1
         isProcessed = True
@@ -190,14 +200,14 @@ class ReconsilationPanel(BasePanel):
                     reconciliation_url,
                     wait_until="domcontentloaded",
                 )
-
+            self.page.wait_for_load_state("networkidle")
             with self.page.expect_navigation(
                 wait_until="domcontentloaded"
             ):
                 self.page.locator(
                     f"input[name='accountType'][value='B']"
                 ).check()
-
+            self.page.wait_for_load_state("networkidle")
             bank = self.page.locator("#bankCodeId")
             bank_count = bank.locator("option").count()
 
@@ -208,7 +218,7 @@ class ReconsilationPanel(BasePanel):
                 wait_until="domcontentloaded"
             ):
                 bank.select_option(index=bank_idx)
-
+            self.page.wait_for_load_state("networkidle")
             branch = self.page.locator("#bankBranchCode")
             branch_count = branch.locator("option").count()
 
@@ -230,7 +240,7 @@ class ReconsilationPanel(BasePanel):
                 wait_until="domcontentloaded"
             ):
                 branch.select_option(index=branch_idx)
-
+            self.page.wait_for_load_state("networkidle")
             account = self.page.locator("#bankACNo")
             account_count = account.locator("option").count()
 
@@ -244,20 +254,23 @@ class ReconsilationPanel(BasePanel):
                 branch_idx += 1
                 account_idx = 1
                 continue
-
+            
             with self.page.expect_navigation(
                 wait_until="domcontentloaded"
             ):
                 account.select_option(index=account_idx)
 
-            if self._month_book_not_closed():
+            self.page.wait_for_load_state("networkidle")
+            isNotClosed = self._month_book_not_closed()
+            if isNotClosed:
                 account_idx += 1
-                isProcessed = False
                 continue
 
-            isProcessed = isProcessed and self._process_current_combination()
+            processed_now = self._process_current_combination()
+            isProcessed = processed_now and isProcessed
 
             account_idx += 1
+        return isProcessed
 
     def _process_treasury_accounts(self):
         assert self.page
@@ -293,13 +306,17 @@ class ReconsilationPanel(BasePanel):
                 account.select_option(index=account_idx)
 
             if self._month_book_not_closed():
-                isProcessed = False
                 account_idx += 1
                 continue
+            if self.no_accounts_available():
+                break
+            processed_now = self._process_current_combination()
+            isProcessed = processed_now and isProcessed
 
-            isProcessed = isProcessed and self._process_current_combination()
 
             account_idx += 1
+        return isProcessed
+        
 
     def _process_post_office_accounts(self):
         assert self.page
@@ -333,101 +350,110 @@ class ReconsilationPanel(BasePanel):
                 wait_until="domcontentloaded"
             ):
                 account.select_option(index=account_idx)
+            
+            self.page.wait_for_load_state("networkidle")
+            if self.no_accounts_available():
+                break
 
             if self._month_book_not_closed():
-                isProcessed = False
                 account_idx += 1
                 continue
-
-            isProcessed = isProcessed and self._process_current_combination()
+            
+            processed_now = self._process_current_combination()
+            isProcessed = processed_now and isProcessed
 
             account_idx += 1
+        return isProcessed
 
-    def _process_current_combination(self):
-        assert self.page
 
-        print("Processing...")
-
-        cash = self.page.locator(
-            "input[name='cashBookBalance']"
-        ).input_value()
-
-        cash = str(
-            int(
-                float(
-                    cash.replace(",", "")
-                )
-            )
-        )
-
-        self.page.locator(
-            "input[name='closingBalance']"
-        ).fill(cash)
-
-        self.page.get_by_role(
-            "button",
-            name="Reconcile",
-        ).click()
-
-        self.accept_bootboxes()
-
-        self.page.wait_for_load_state("networkidle")
-
-        self.page.get_by_role(
-            "button",
-            name="Freeze",
-        ).click()
-
-        self.page.wait_for_load_state("networkidle")
-
-        self.accept_bootboxes()
-        return True
-
-    def _month_book_not_closed(self) -> bool:
-        assert self.page
+    def _process_current_combination(self) -> bool:
+        print("Entered")
+        assert isinstance(self.page, Page)
 
         try:
-            self.page.wait_for_url(
-                lambda url: "home.htm" in url,
-                timeout=1000,
+            print("Processing...")
+
+            cash = self.page.locator(
+                "input[name='cashBookBalance']"
+            ).input_value()
+
+            cash = str(
+                    float(
+                        cash.replace(",", "")
+                    )
             )
 
-        except TimeoutError:
+            self.page.locator(
+                "input[name='closingBalance']"
+            ).fill(cash)
+
+            self.page.get_by_role(
+                "button",
+                name="Reconcile",
+            ).click()
+
+            self.accept_bootboxes()
+
+            self.page.wait_for_load_state("networkidle")
+
+            self.page.locator("button:has-text('Freeze')").click()
+
+            self.page.wait_for_load_state("networkidle")
+
+            self.accept_bootboxes()
+
+            return True
+
+        except Exception as e:
+            print(f"Error in _process_current_combination: {e}")
+            traceback.print_exc()
             return False
-
-        try:
-            modal = self.page.locator(
-                ".bootbox.modal:visible"
-            )
-
-            modal.wait_for(
-                state="visible",
-                timeout=5000,
-            )
-
-            message = modal.locator(
-                ".bootbox-body"
-            ).inner_text().strip()
-
-            if message.startswith(
-                "Please close the Month Book"
-            ):
-                modal.locator(
-                    "button.bootbox-accept"
-                ).click()
-
-                modal.wait_for(
-                    state="hidden"
-                )
-
-                self.page.goto(
-                    self.config["app"]["reconsilation_url"],
-                    wait_until="networkidle",
-                )
-
-                return True
-
-        except TimeoutError:
-            pass
-
+        
+    def _month_book_not_closed(self) -> bool:
+        """
+        After selecting an account, the page either:
+          - settles on the reconciliation form (cashBookBalance becomes
+            visible) -> month book IS closed, safe to process, return False
+          - shows a "Please close the Month Book" popup -> return True
+            (after accepting it)
+ 
+        Polls directly for whichever of these actually appears on the page,
+        instead of guessing from a URL snapshot within a fixed timeout.
+        Account selection can route through more than one intermediate page,
+        so a one-shot URL check can catch a transient URL either too early
+        or too late and give the wrong answer depending on timing.
+        """
+        assert self.page
+ 
+        cash_input = self.page.locator("input[name='cashBookBalance']").first
+        modal = self.page.locator(".bootbox.modal:visible").first
+ 
+        deadline_ms = 6000
+        interval_ms = 200
+        waited_ms = 0
+ 
+        while waited_ms < deadline_ms:
+            if cash_input.is_visible():
+                return False
+ 
+            if modal.is_visible():
+                try:
+                    message = modal.locator(
+                        ".bootbox-body"
+                    ).inner_text().strip()
+                except Exception:
+                    message = ""
+ 
+                if message.startswith("Please close the Month Book"):
+                    modal.locator(
+                        "button.bootbox-accept"
+                    ).click()
+ 
+                    modal.wait_for(state="hidden")
+ 
+                    return True
+ 
+            self.page.wait_for_timeout(interval_ms)
+            waited_ms += interval_ms
+ 
         return False

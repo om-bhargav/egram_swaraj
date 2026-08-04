@@ -123,6 +123,45 @@ class BasePanel:
 
             except TimeoutError:
                 break
+
+
+    def no_accounts_available(self) -> bool:
+        assert self.page
+
+        try:
+            modal = self.page.locator(".bootbox.modal:visible")
+
+            modal.wait_for(
+                state="visible",
+                timeout=1500,
+            )
+
+            message = (
+                modal.locator(".bootbox-body")
+                .inner_text()
+                .strip()
+            )
+
+            if (
+                message.startswith("No ")
+                and message.endswith("Accounts available")
+            ):
+                modal.locator(
+                    "button.bootbox-accept"
+                ).click()
+
+                modal.wait_for(
+                    state="hidden",
+                    timeout=5000,
+                )
+
+                return True
+
+            return False
+
+        except TimeoutError:
+            return False
+        
     def switch_unit(self, year: str):
         assert self.page
 

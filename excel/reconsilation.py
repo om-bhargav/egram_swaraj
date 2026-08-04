@@ -2,13 +2,16 @@ from pathlib import Path
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.cell import Cell
- 
+from datetime import datetime,timedelta,date
+
 def get_reconciliation_users(config: dict) -> dict[tuple[str, str], str]:
     """
     Returns:
     {
         (username, password): "bank" | "treasury" | "post_office"
     }
+
+    Skips records whose Last Day Closed is yesterday or later.
     """
 
     workbook = load_workbook(
@@ -16,76 +19,116 @@ def get_reconciliation_users(config: dict) -> dict[tuple[str, str], str]:
         data_only=True,
     )
 
-    records_sheet = workbook["Sheet1"]
-    users_sheet = workbook["useridpass"]
+    try:
+        records_sheet = workbook["Sheet1"]
+        users_sheet = workbook["useridpass"]
 
-    # GP -> (username, password)
-    credentials = {}
+        headers = [
+            str(cell.value).strip() if cell.value else ""
+            for cell in records_sheet[1]
+        ]
 
-    for row in users_sheet.iter_rows(min_row=2, values_only=True):
-        gp, username, password = row[:3]
+        last_day_closed_col = None
+        if "Last Day Closed" in headers:
+            last_day_closed_col = headers.index("Last Day Closed")
 
-        if not gp or not username or not password:
-            continue
+        # GP -> (username, password)
+        credentials: dict[str, tuple[str, str]] = {}
 
-        credentials[str(gp).strip().upper()] = (
-            str(username).strip(),
-            str(password).strip(),
-        )
+        for row in users_sheet.iter_rows(min_row=2, values_only=True):
+            if len(row) < 3:
+                continue
 
-    result = {}
+            gp, username, password = row[:3]
 
-    for row in records_sheet.iter_rows(min_row=2, values_only=True):
-        (
-            block,
-            gp,
-            daybook,
-            month_date,
-            reconciliation,
-            bank,
-            treasury,
-            post_office,
-            remarks,
-        ) = row[:9]
+            if not gp or not username or not password:
+                continue
 
-        if not gp:
-            continue
+            credentials[str(gp).strip().upper()] = (
+                str(username).strip(),
+                str(password).strip(),
+            )
 
-        if str(reconciliation).strip().lower() != "yes":
-            continue
+        yesterday = date.today() - timedelta(days=1)
 
-        # Skip already processed records
-        if str(remarks).strip().lower() == "done":
-            continue
+        result: dict[tuple[str, str], str] = {}
 
-        gp = str(gp).strip().upper()
+        for row in records_sheet.iter_rows(min_row=2, values_only=True):
+            if len(row) < 8:
+                continue
 
-        if gp not in credentials:
-            continue
+            (
+                block,
+                gp,
+                daybook,
+                month_date,
+                reconciliation,
+                bank,
+                treasury,
+                post_office,
+            ) = row[:8]
 
-        option = None
+            if not gp:
+                continue
 
-        if str(bank).strip().lower() == "yes":
-            option = "bank"
-        elif str(treasury).strip().lower() == "yes":
-            option = "treasury"
-        elif str(post_office).strip().lower() == "yes":
-            option = "post_office"
+            if str(reconciliation).strip().lower() != "yes":
+                continue
 
-        if option is None:
-            continue
+            # Skip if Last Day Closed >= yesterday
+            if last_day_closed_col is not None and last_day_closed_col < len(row):
+                value = row[last_day_closed_col]
 
-        result[credentials[gp]] = option
+                if value:
+                    closed_date = None
 
-    return result
+                    if isinstance(value, datetime):
+                        closed_date = value.date()
+                    elif isinstance(value, date):
+                        closed_date = value
+                    elif isinstance(value, str):
+                        value = value.strip()
+
+                        for fmt in (
+                            "%d-%m-%Y",
+                            "%d/%m/%Y",
+                            "%Y-%m-%d",
+                            "%d-%b-%Y",
+                            "%d %b %Y",
+                        ):
+                            try:
+                                closed_date = datetime.strptime(value, fmt).date()
+                                break
+                            except ValueError:
+                                pass
+
+                    if closed_date is not None and closed_date >= yesterday:
+                        continue
+
+            gp = str(gp).strip().upper()
+
+            if gp not in credentials:
+                continue
+
+            if str(bank).strip().lower() == "yes":
+                result[credentials[gp]] = "bank"
+            elif str(treasury).strip().lower() == "yes":
+                result[credentials[gp]] = "treasury"
+            elif str(post_office).strip().lower() == "yes":
+                result[credentials[gp]] = "post_office"
+
+        return result
+
+    finally:
+        workbook.close()
 
 
-def update_reconciliation_remarks(
+def update_reconciliation_last_day_closed(
     config: dict,
-    users: list[tuple[str, str]],
+    users: list[tuple[str, str, str]],
 ) -> bool:
     """
-    Marks Remarks = 'Done' for the given (username, password) pairs.
+    Updates the 'Last Day Closed' column for the given
+    (username, password, last_date_closed) tuples.
 
     Returns:
         True  -> workbook updated successfully
@@ -115,6 +158,20 @@ def update_reconciliation_remarks(
         records_sheet = workbook["Sheet1"]
         users_sheet = workbook["useridpass"]
 
+        # Find or create "Last Day Closed" column
+        headers = [cell.value for cell in records_sheet[1]]
+
+        if "Last Day Closed" in headers:
+            last_day_col = headers.index("Last Day Closed") + 1
+        else:
+            last_day_col = len(headers) + 1
+            cell = records_sheet.cell(
+                row=1,
+                column=last_day_col,
+            )
+            assert isinstance(cell,Cell)
+            cell.value = "Last Day Closed"
+
         # (username, password) -> GP
         credentials: dict[tuple[str, str], str] = {}
 
@@ -134,26 +191,37 @@ def update_reconciliation_remarks(
                 )
             ] = str(gp).strip().upper()
 
-        target_gps = {
-            credentials[user]
-            for user in users
-            if user in credentials
-        }
+        # GP -> Last Day Closed
+        gp_to_date: dict[str, str] = {}
 
-        if not target_gps:
-            return True
+        for username, password, last_day_closed in users:
+            gp = credentials.get(
+                (
+                    str(username).strip(),
+                    str(password).strip(),
+                )
+            )
+
+            if gp:
+                gp_to_date[gp] = str(last_day_closed)
 
         updated = False
 
-        for row in records_sheet.iter_rows(min_row=2):
+        for row_idx, row in enumerate(records_sheet.iter_rows(min_row=2), start=2):
             gp = row[1].value
 
             if not gp:
                 continue
+            
+            gp = str(gp).strip().upper()
 
-            if str(gp).strip().upper() in target_gps:
-                assert isinstance(row[8],Cell)
-                row[8].value = "Done"  # Remarks column
+            if gp in gp_to_date:
+                cell = records_sheet.cell(
+                    row=row_idx,
+                    column=last_day_col,
+                )
+                assert isinstance(cell, Cell)
+                cell.value = gp_to_date[gp]
                 updated = True
 
         if updated:

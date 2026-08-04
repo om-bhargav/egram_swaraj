@@ -2,7 +2,7 @@ from excel import get_pending_users
 from panel import GPPanel
 from panel.reconsilation import ReconsilationPanel
 from panel.createnregister import CreateAndRegisterPlanPanel
-from excel.reconsilation import get_reconciliation_users,update_reconciliation_remarks
+from excel.reconsilation import get_reconciliation_users,update_reconciliation_last_day_closed
 from excel.createnregisterplan import get_users,mark_users_done
 def process_panchayat_development_plan(config):
     users_with_records = get_pending_users(config)
@@ -22,10 +22,10 @@ def process_reconsilation(config):
         panel = ReconsilationPanel(config)
         lst = []
         for (username,password),option in users.items():
-            panel.run(username,password)
-            lst.append((username,password))
+            last_date_closed = panel.run(username,password)
+            lst.append((username,password,last_date_closed))
     finally:
-        update_reconciliation_remarks(config,lst)
+        update_reconciliation_last_day_closed(config,lst)
 
 
 def process_createnregisterplan(config):
