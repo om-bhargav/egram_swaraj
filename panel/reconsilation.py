@@ -187,7 +187,7 @@ class ReconsilationPanel(BasePanel):
     def _process_bank_accounts(self):
         assert self.page
 
-        bank_idx = 5
+        bank_idx = 1
         branch_idx = 1
         account_idx = 1
         isProcessed = True
