@@ -4,9 +4,13 @@ from helpers.reconsilation import is_bank_reconciliation_message,is_daybook_clos
 from datetime import datetime,timedelta
 import time
 import traceback
+import pymsgbox
+
 class ReconsilationPanel(BasePanel):
     def __init__(self, config: dict):
         super().__init__(config)
+        self.username = None
+        self.password = None
 
     def run(
         self,
@@ -17,6 +21,8 @@ class ReconsilationPanel(BasePanel):
 
         try:
             self.login(username, password)
+            self.username = username
+            self.password = password
             self.open_menu("Accounting Management")
             final_answer = self.close_day_books()
             return final_answer
@@ -31,11 +37,6 @@ class ReconsilationPanel(BasePanel):
           3. Any other popup appears -> Wait 10 seconds and stop
         """
         assert self.page
-        target_url = self.config["app"]["close_day_book_url"]
-
-        if self.page.url != target_url:
-            self.page.goto(target_url)
-            self.page.wait_for_load_state("networkidle")
 
         yesterday = (
             datetime.now() - timedelta(days=1)
@@ -67,8 +68,8 @@ class ReconsilationPanel(BasePanel):
                 last_closed,
                 "%d/%m/%Y"
             ).date()
-            print(f"Last Closed : {last_closed}")
-            print(f"Yesterday   : {yesterday}")
+            # print(f"Last Closed : {last_closed}")
+            # print(f"Yesterday   : {yesterday}")
             last_date_closed = last_closed
             # Finished
             if last_closed_date >= yesterday_date:
@@ -120,6 +121,13 @@ class ReconsilationPanel(BasePanel):
     
                 continue
             
+            if self.maker_month_book_pending(modal_text):
+               self._maker_login_process()
+               self.accept_bootboxes()
+                   
+               self.page.wait_for_timeout(1000)
+    
+               continue
             # -------------------------------------------------------
             # Unknown popup
             # -------------------------------------------------------
@@ -317,7 +325,6 @@ class ReconsilationPanel(BasePanel):
             account_idx += 1
         return isProcessed
         
-
     def _process_post_office_accounts(self):
         assert self.page
 
@@ -364,7 +371,6 @@ class ReconsilationPanel(BasePanel):
 
             account_idx += 1
         return isProcessed
-
 
     def _process_current_combination(self) -> bool:
         print("Entered")
@@ -428,7 +434,7 @@ class ReconsilationPanel(BasePanel):
         cash_input = self.page.locator("input[name='cashBookBalance']").first
         modal = self.page.locator(".bootbox.modal:visible").first
  
-        deadline_ms = 6000
+        deadline_ms = 4000
         interval_ms = 200
         waited_ms = 0
  
@@ -457,3 +463,163 @@ class ReconsilationPanel(BasePanel):
             waited_ms += interval_ms
  
         return False
+    
+    def _maker_login_process(self) -> None:
+        assert self.page
+
+        # Close current admin session
+        self.close_session()
+
+        # Start a fresh browser/context
+        self.start_session()
+
+        # Login with Maker credentials
+        self.login(
+            self.config["mgr_user"]["username"],
+            self.config["mgr_user"]["password"],
+        )
+        self._close_scheme_day_books()
+        self._mgr_process_dsc()
+        # Close maker session
+        self.close_session()
+
+        # Start a fresh browser/context again
+        self.start_session()
+
+        # Login back with the admin credentials that were being processed
+        assert self.username and self.password
+        self.login(
+            self.username,
+            self.password,
+        )
+    def __open_close_day_books(self):
+        assert self.page
+
+        self.open_menu("Accounting Management")
+
+        # Open Closing of Books menu
+        self.page.get_by_role(
+            "link",
+            name="Closing of Books",
+        ).click()
+
+        # Wait for dropdown to become visible
+        self.page.locator(
+            "a[href='showSchemeWiseDayBook.htm']"
+        ).wait_for(state="visible")
+
+        # Click Schemewise Day Book Close
+        with self.page.expect_navigation(
+            wait_until="domcontentloaded",
+        ):
+            self.page.locator(
+                "a[href='showSchemeWiseDayBook.htm']"
+            ).click()
+
+        self.page.wait_for_load_state("networkidle")
+
+    def _mgr_process_dsc(self):
+        assert self.page
+        self.open_menu("DSC Management")
+
+        # Click the dropdown menu to open it
+        self.page.locator("li.dropdown > a.dropdown-toggle").click()
+
+        # Get the menu items
+        menu = self.page.locator(
+            "li.dropdown.open ul.dropdown-menu li"
+        )
+
+        # Click the second last option
+        with self.page.expect_navigation(
+            wait_until="domcontentloaded",
+        ):
+            menu.nth(menu.count() - 2).locator("a").click()
+
+        self.page.wait_for_load_state("networkidle")
+        rows = self.page.locator("#dataTable tbody tr")
+        row_count = rows.count()
+
+        if row_count == 0:
+            self.console.print(
+                "[yellow]No month book files found for signing.[/yellow]"
+            )
+            return
+        result = pymsgbox.confirm(
+            text=(
+                "Please start the DSC Generator software before proceeding.\n\n"
+                "Once it is running, click 'Started'."
+            ),
+            title="DSC Generator Required",
+            buttons=["Started", "Cancel"]
+        )
+
+        if result != "Started":
+            return
+        for i in range(row_count):
+            row = rows.nth(i)
+
+            scheme = row.locator("td:nth-child(3)").inner_text().strip()
+
+            self.console.print(
+                f"[cyan]Signing Month Book: {scheme}[/cyan]"
+            )
+
+            # Select the radio button
+            row.locator(
+                "input[type='radio'][name='approveDsc']"
+            ).check()
+
+            # Click Apply Digital Signature
+            row.get_by_role(
+                "link",
+                name="Apply Digital Signature",
+            ).click()
+
+            # TODO:
+            # Handle the DSC signing popup/process here
+
+            self.page.wait_for_load_state("networkidle")
+
+
+    def _close_scheme_day_books(self) -> None:
+        assert self.page
+        
+        self.__open_close_day_books()
+        scheme = self.page.locator("#schemeid")
+
+        schemes = [
+            (
+                scheme.locator("option").nth(i).get_attribute("value"),
+                scheme.locator("option").nth(i).inner_text().strip(),
+            )
+            for i in range(1, scheme.locator("option").count())  # Skip ---Select---
+        ]
+
+        for value, name in schemes:
+            # Re-locate after every reload
+            scheme = self.page.locator("#schemeid")
+            self.console.print(
+                f"[cyan]Closing Day Book for: {name}[/cyan]"
+            )
+
+            with self.page.expect_navigation(
+                wait_until="domcontentloaded"
+            ):
+                scheme.select_option(value=value)
+
+            self.page.wait_for_load_state("networkidle")
+
+            self.page.get_by_role(
+                "button",
+                name="Close Day Book",
+            ).click()
+
+            self.accept_bootboxes()
+
+            self.page.wait_for_load_state("networkidle")
+
+            self.console.print(
+                f"[green]✓ Closed: {name}[/green]"
+            )
+            self.__open_close_day_books()

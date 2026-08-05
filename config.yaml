@@ -8,7 +8,9 @@ app:
   reconsilation_url: "https://egramswaraj.gov.in/AddBankReconciliation.htm"
   create_plan: "https://egramswaraj.gov.in/addactivity.htm"
   close_day_book_url: "https://egramswaraj.gov.in/showDayBook.htm"
-
+mgr_user:
+  username: "PR-JHARIAL-FFC-V-MGR"
+  password: "Admin@2026"
 browser:
   headless: false
   timeout_ms: 30000

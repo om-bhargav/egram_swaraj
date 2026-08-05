@@ -18,14 +18,16 @@ def process_panchayat_development_plan(config):
 
 def process_reconsilation(config):
     try:
-        users = get_reconciliation_users(config)
+        # users = get_reconciliation_users(config)
+        users = {("PR-JHARIAL-V-ADM","Jhar#1234"):"B"}
         panel = ReconsilationPanel(config)
         lst = []
         for (username,password),option in users.items():
             last_date_closed = panel.run(username,password)
             lst.append((username,password,last_date_closed))
     finally:
-        update_reconciliation_last_day_closed(config,lst)
+        pass
+        # update_reconciliation_last_day_closed(config,lst)
 
 
 def process_createnregisterplan(config):

@@ -1,12 +1,12 @@
 from playwright.sync_api import Page, TimeoutError,expect
 from browser import Browser
-
+from rich.console import Console
 class BasePanel:
     def __init__(self, config: dict):
         self.browser = Browser(config)
         self.config = config
         self.page: Page | None = None
-
+        self.console = Console()
     # ---------------- Session ----------------
 
     def start_session(self):
@@ -215,3 +215,12 @@ class BasePanel:
 
         # Wait for any AJAX request triggered by onchange
         self.page.wait_for_load_state("networkidle")
+
+
+    def maker_month_book_pending(self,message: str) -> bool:
+        expected = (
+            "Close and digitally sign month book for all online schemes "
+            "from maker login first and then close the month book from admin user"
+        )
+
+        return message.strip() == expected
