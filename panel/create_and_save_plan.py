@@ -213,7 +213,7 @@ class CreateAndSavePlanPanel(BasePanel):
         if bootbox.is_visible(timeout=2000):
             message = bootbox.locator(".bootbox-body").inner_text()
 
-            if "Plan is available for modification." in message.lower():
+            if "plan is available for modification" in message.lower():
                 self.accept_bootboxes()
                 return  # Skip the remaining steps
 
