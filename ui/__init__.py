@@ -8,15 +8,15 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from config import load_config
-from controllers import process_panchayat_development_plan,process_reconsilation,process_createnregisterplan
+from controllers import process_panchayat_development_plan,process_reconsilation,process_createnregisterplan,process_creatensaveplan
 import traceback
 
 class App:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("eSwaraj Automations")
-        self.root.geometry("400x220")
-        self.root.resizable(False, False)
+        # self.root.geometry("400x220")
+        # self.root.resizable(False, False)
 
         ttk.Label(
             self.root,
@@ -42,6 +42,13 @@ class App:
             self.root,
             text="Create And Register Plan",
             command=self.run_cpandr,
+            width=35
+        ).pack(pady=10)
+
+        ttk.Button(
+            self.root,
+            text="Create And Save Plan For Current Year",
+            command=self.run_cpands,
             width=35
         ).pack(pady=10)
 
@@ -150,6 +157,7 @@ class App:
             task,
             "Running Reconsilation Automation..."
         )
+
     def run_cpandr(self):
         def task():
            config = load_config()
@@ -159,6 +167,17 @@ class App:
             task,
             "Creating Plan And Register Automation..."
         )
+
+    def run_cpands(self):
+        def task():
+           config = load_config()
+           process_creatensaveplan(config)
+
+        self.start_task(
+            task,
+            "Creating Plan And Saving Automation..."
+        )
+
     def run(self):
         self.root.mainloop()
 

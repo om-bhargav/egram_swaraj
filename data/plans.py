@@ -24,13 +24,13 @@ plans = [
         "expected_beneficiaries": {
             "general": 1,
         },
-        "estimated_total_cost": 500000,
+        "estimated_total_cost": 100000,
         "asset_type": "Immovable",
         "asset_category": "Community Sanitation",
         "asset_sub_category": "Community Sanitation Complex (CSC)",
         "asset_unit_type": "Numbers",
         "total_units": 1,
-        "unit_cost": 500000,
+        "unit_cost": 100000,
     },
     {
         "theme": "Theme 4 - Water Sufficient Village",
@@ -57,12 +57,74 @@ plans = [
         "expected_beneficiaries": {
             "general": 1,
         },
-        "estimated_total_cost": 500000,
+        "estimated_total_cost": 100000,
         "asset_type": "Immovable",
         "asset_category": "Drinking water supply structure",
         "asset_sub_category": "Tap connections",
         "asset_unit_type": "Numbers",
         "total_units": 1,
-        "unit_cost": 500000,
+        "unit_cost": 100000,
     },
+]
+
+
+plans_for_current_year = [
+    {
+    "theme": "Theme 4 - Water Sufficient Village",
+    "activity": "Payment of re-occurring electricity charges of intra-village water supply systems",
+    "subject_area": "Drinking water",
+    "activity_type": "Community Works",
+    "description": "Payment of re-occurring electricity charges of intra-village water supply systems",
+    "mission_antyodaya_gaps": [
+        "None",
+    ],
+    "remarkable_for": "All",
+    "target_population": [
+        "All",
+    ],
+    "activity_nature": "Operational",
+    "funded_by_panchayat": "Yes",
+    "estimated_completion": {
+        "years": 1,
+    },
+    "tentative_start": {
+        "year": 2026,
+        "month": "April",
+    },
+    "expected_beneficiaries": {
+        "general": 1,
+    },
+    "estimated_total_cost": 100000,
+    "operational_type": "Rent, Rates & Taxes",
+    "remarks": ""
+},
+{
+    "theme": "Theme 4 - Water Sufficient Village",
+    "activity": "Operation and Maintenance of Water treatment plant",
+    "subject_area": "Drinking water",
+    "activity_type": "Community Works",
+    "description": "Operation and Maintenance of Water treatment plant",
+    "mission_antyodaya_gaps": [
+        "None",
+    ],
+    "remarkable_for": "All",
+    "target_population": [
+        "All",
+    ],
+    "activity_nature": "Operational",
+    "funded_by_panchayat": "Yes",
+    "estimated_completion": {
+        "years": 1,
+    },
+    "tentative_start": {
+        "year": 2026,
+        "month": "April",
+    },
+    "expected_beneficiaries": {
+        "general": 1
+    },
+    "estimated_total_cost": 100000,
+    "operational_type": "Rent, Rates & Taxes",
+    "remarks": ""
+}
 ]

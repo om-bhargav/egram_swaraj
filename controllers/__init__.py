@@ -2,6 +2,7 @@ from excel import get_pending_users
 from panel import GPPanel
 from panel.reconsilation import ReconsilationPanel
 from panel.createnregister import CreateAndRegisterPlanPanel
+from panel.create_and_save_plan import CreateAndSavePlanPanel
 from excel.reconsilation import get_reconciliation_users,update_reconciliation_last_day_closed
 from excel.createnregisterplan import get_users,mark_users_done
 def process_panchayat_development_plan(config):
@@ -35,6 +36,17 @@ def process_createnregisterplan(config):
     try:
         users = get_users(config)
         panel = CreateAndRegisterPlanPanel(config)
+        for (username,password),years in users.items():
+            panel.run(username,password,years)
+            done.append((username,password))
+    finally:
+        mark_users_done(config,done)
+
+def process_creatensaveplan(config):
+    done = []
+    try:
+        users = get_users(config)
+        panel = CreateAndSavePlanPanel(config)
         for (username,password),years in users.items():
             panel.run(username,password,years)
             done.append((username,password))

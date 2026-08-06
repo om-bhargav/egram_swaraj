@@ -478,7 +478,7 @@ class ReconsilationPanel(BasePanel):
             self.config["mgr_user"]["username"],
             self.config["mgr_user"]["password"],
         )
-        self._close_scheme_day_books()
+        # self._close_scheme_day_books()
         self._mgr_process_dsc()
         # Close maker session
         self.close_session()
@@ -556,29 +556,35 @@ class ReconsilationPanel(BasePanel):
 
         if result != "Started":
             return
-        for i in range(row_count):
-            row = rows.nth(i)
+        while True:
+            rows = self.page.locator("#dataTable tbody tr")
+            count = rows.count()
+
+            if count == 0:
+                self.console.print("[green]All month books signed.[/green]")
+                break
+
+            row = rows.first
 
             scheme = row.locator("td:nth-child(3)").inner_text().strip()
+            self.console.print(f"[cyan]Signing Month Book: {scheme}[/cyan]")
 
-            self.console.print(
-                f"[cyan]Signing Month Book: {scheme}[/cyan]"
-            )
-
-            # Select the radio button
-            row.locator(
-                "input[type='radio'][name='approveDsc']"
-            ).check()
+            # Select radio
+            row.locator("input[name='approveDsc']").check()
 
             # Click Apply Digital Signature
-            row.get_by_role(
-                "link",
-                name="Apply Digital Signature",
-            ).click()
+            row.locator("td:last-child a").click()
 
-            # TODO:
-            # Handle the DSC signing popup/process here
+            # Wait until the signing modal is actually visible
+            panel = self.page.locator("#panel")
+            panel.wait_for(state="visible", timeout=60000)
+            # Click Confirm Signing
+            panel.locator("button.btn-success").click()
 
+            def on_dialog(dialog):
+                dialog.accept()
+
+            self.page.on("dialog", on_dialog) 
             self.page.wait_for_load_state("networkidle")
 
 

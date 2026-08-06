@@ -1,6 +1,7 @@
 from playwright.sync_api import Page, TimeoutError,expect
 from browser import Browser
 from rich.console import Console
+from datetime import datetime
 class BasePanel:
     def __init__(self, config: dict):
         self.browser = Browser(config)
@@ -164,7 +165,11 @@ class BasePanel:
         
     def switch_unit(self, year: str):
         assert self.page
+        current_year = datetime.now().year
+        current_financial_year = f"{current_year}-{current_year + 1}"
 
+        if year == current_financial_year:
+            return
         self.page.goto(
             self.config["app"]["switch_unit_url"],
             wait_until="networkidle",
@@ -224,3 +229,27 @@ class BasePanel:
         )
 
         return message.strip() == expected
+    
+    def open_dropdown_option(self, dropdown_name: str, option_name: str):
+        assert self.page
+    
+        # Open the dropdown
+        dropdown = self.page.locator(
+            "a.dropdown-toggle",
+            has_text=dropdown_name
+        )
+    
+        dropdown.wait_for(state="visible")
+        dropdown.click()
+    
+        # Click the desired option
+        option = self.page.locator(
+            "ul.dropdown-menu[role='menu'] li a"
+        ).filter(
+            has_text=option_name
+        )
+    
+        option.first.wait_for(state="visible")
+        option.first.click()
+    
+        self.page.wait_for_load_state("networkidle")
