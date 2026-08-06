@@ -202,12 +202,23 @@ class CreateAndSavePlanPanel(BasePanel):
 
     def save_plans(self):
         assert self.page
+
         self.open_menu("Panchayat Development Plan")
-        self.open_dropdown_option("Panchayat Development Plan","Register Plan")
+        self.open_dropdown_option("Panchayat Development Plan", "Register Plan")
         self.page.wait_for_load_state("networkidle")
 
-        self.page.locator("#saveBtnId").click()
+        # Check if a Bootbox modal appeared
+        bootbox = self.page.locator(".bootbox.modal")
 
+        if bootbox.is_visible(timeout=2000):
+            message = bootbox.locator(".bootbox-body").inner_text()
+
+            if "Plan is available for modification." in message.lower():
+                self.accept_bootboxes()
+                return  # Skip the remaining steps
+
+        # Continue normally
+        self.page.locator("#saveBtnId").click()
 
         self.page.wait_for_load_state("networkidle")
         self.accept_bootboxes()
