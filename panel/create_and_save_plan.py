@@ -34,13 +34,26 @@ class CreateAndSavePlanPanel(BasePanel):
 
         try:
             self.login(username, password)
-            # self.process_years(years)
+            self.allocate_funds()
+            self.process_years(years)
             self.save_plans()
         finally:
             self.close_session()
 
     # ---------------- Navigation ----------------
-
+    def allocate_funds(self):
+        assert self.page
+        self.open_menu("Funds / Resource Envelope")
+        self.open_dropdown_option("Expected Funds Allocation","Expected Funds Allocation")
+        self.page.wait_for_load_state("networkidle")
+        # Fill 2,00,000
+        self.page.locator("#avaBalGen15").fill("200000")
+        # Click Save
+        self.page.locator("#saveAsDraftId").click()
+        # Wait for save request to complete
+        self.page.wait_for_load_state("networkidle")
+        self.accept_bootboxes()
+        
     def open_create_plan(self):
         assert self.page
 
